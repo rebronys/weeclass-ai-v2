@@ -179,7 +179,7 @@ function CheckInModal({ onDone }) {
 // 채팅 화면
 // ══════════════════════════════════════════════════════
 function ChatScreen({ userInfo, onEnd }) {
-  const gradeNum = parseInt(userInfo.grade);
+// const gradeNum = parseInt(userInfo.grade);
   const gradeStr = userInfo.grade;
 
   const welcomeMsg = `안녕! ${gradeStr} ${userInfo.avatar?.emoji} ${userInfo.avatar?.name}로 들어왔구나 😊\n여긴 네 마음을 편하게 말할 수 있는 곳이야. 이름 같은 개인정보는 말하지 않아도 돼. 혹시 지금 당장 위험한 상황이면 '도와줘'라고 알려줘.\n\n오늘은 '${userInfo.category}' 이야기로 시작해볼까? 아니면 다른 주제를 골라도 괜찮아 😊`;
