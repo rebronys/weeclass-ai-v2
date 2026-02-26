@@ -4,7 +4,6 @@ const FALLBACKS = [
   '응! 좀 더 이야기해줄 수 있어? 😊',
   '그랬구나 💙 어떤 기분이었어?',
   '잘 듣고 있어! 계속 말해줘 😌',
-  '그 상황에서 어떤 생각이 들었어?',
   '천천히 말해줘도 괜찮아 💙',
 ];
 
@@ -15,49 +14,63 @@ module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).end();
 
-  const { messages, grade, category, character, gender } = req.body;
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  if (!apiKey) {
-    return res.status(200).json({ reply: FALLBACKS[Math.floor(Math.random() * FALLBACKS.length)] });
-  }
-
   try {
-    let contents = (messages || [])
-      .filter(m => m.role !== 'system')
-      .map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
+    const { messages, grade, category, character, gender } = req.body;
+    const apiKey = process.env.GEMINI_API_KEY;
 
-    while (contents.length && contents[0].role === 'model') contents.shift();
-    if (!contents.length) contents = [{ role: 'user', parts: [{ text: '안녕' }] }];
-
-    const fixed = [contents[0]];
-    for (let i = 1; i < contents.length; i++) {
-      if (contents[i].role !== fixed[fixed.length - 1].role) fixed.push(contents[i]);
+    if (!apiKey) {
+      console.error('API 키 없음');
+      return res.status(200).json({ reply: FALLBACKS[0] });
     }
-    contents = fixed;
 
-    if (contents[contents.length - 1].role !== 'user') contents.pop();
-    if (!contents.length) contents = [{ role: 'user', parts: [{ text: '안녕' }] }];
+    // 마지막 사용자 메시지만 추출
+    const allMsgs = (messages || []).filter(m => m.role !== 'system');
+    const lastUserMsg = allMsgs.filter(m => m.role === 'user').pop();
+    
+    if (!lastUserMsg) {
+      return res.status(200).json({ reply: '안녕! 무슨 이야기 하고 싶어? 😊' });
+    }
 
-    const systemPrompt = `너의 이름은 "${grade ? grade + ' 담당 ' : ''}공부하는 윤정쌤"이야.
-너는 지금 초등학생과 카카오톡처럼 편하게 채팅하고 있어.
-${grade ? `상대방은 초등학교 ${grade} 학생이야.` : ''}
-${gender && gender !== '비공개' ? `성별은 ${gender}이야.` : ''}
-${category ? `오늘 대화 주제는 "${category}"야.` : ''}
-${character ? `학생 아바타는 "${character.name}"(${character.type})야.` : ''}
+    // 대화 히스토리 최대 10개로 제한, user/model 교대로 정리
+    const recentMsgs = allMsgs.slice(-10);
+    const contents = [];
+    
+    for (const msg of recentMsgs) {
+      const role = msg.role === 'assistant' ? 'model' : 'user';
+      // 연속 같은 role 방지
+      if (contents.length > 0 && contents[contents.length - 1].role === role) {
+        contents[contents.length - 1].parts[0].text += '\n' + msg.content;
+      } else {
+        contents.push({ role, parts: [{ text: msg.content }] });
+      }
+    }
 
-아래 규칙만 지켜줘:
-1. 학생이 하는 말을 정확히 읽고, 그 내용에 바로 반응해. 안녕하면 안녕으로, 배고프면 배고픈 것에 공감, 슬프면 슬픔에 공감.
-2. 반말로 짧고 따뜻하게 (2~3문장), 이모지 1~2개, 마지막에 질문 1개.
-3. 이전 대화 내용을 기억하고 자연스럽게 이어서 대화해.
-4. "힘들겠다", "이야기해줘서 고마워" 같은 상담 문구를 매번 쓰지 마.
-5. 자해·자살 언급 시에만: "청소년 상담 1388, 자살예방 1393" 안내.
-6. 그 외엔 자유롭게 자연스럽게 대화해줘.`;
+    // 반드시 user로 시작, user로 끝나야 함
+    while (contents.length > 0 && contents[0].role === 'model') contents.shift();
+    while (contents.length > 0 && contents[contents.length - 1].role === 'model') contents.pop();
+    
+    if (contents.length === 0) {
+      contents.push({ role: 'user', parts: [{ text: lastUserMsg.content }] });
+    }
+
+    const systemPrompt = `너는 초등학생과 카카오톡처럼 자연스럽게 대화하는 친근한 선생님 "공부하는 윤정쌤"이야.
+${grade ? `학생은 ${grade}이야.` : ''}${gender && gender !== '비공개' ? ` 성별은 ${gender}.` : ''}${category ? ` 오늘 주제는 "${category}".` : ''}${character ? ` 아바타는 "${character.name}".` : ''}
+
+규칙:
+- 학생이 한 말에 정확히 반응해. 안녕→안녕, 배고파→배고픔공감, 싸웠어→싸운것공감
+- 반말, 짧게(2문장), 이모지 1개, 마지막에 질문 1개
+- 절대 매번 같은 말 반복하지 마
+- 자연스럽고 따뜻하게`;
 
     const body = {
       contents,
       system_instruction: { parts: [{ text: systemPrompt }] },
-      generationConfig: { temperature: 1.0, maxOutputTokens: 400, topP: 0.97, topK: 64 },
+      generationConfig: { 
+        temperature: 1.0, 
+        maxOutputTokens: 200, 
+        topP: 0.95, 
+        topK: 40 
+      },
       safetySettings: [
         { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
         { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
@@ -66,20 +79,32 @@ ${character ? `학생 아바타는 "${character.name}"(${character.type})야.` :
       ],
     };
 
+    console.log('전송 contents 수:', contents.length);
+    console.log('roles:', contents.map(c => c.role).join(' -> '));
+
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
     );
+    
     const data = await response.json();
+    
     if (data.error) {
-      console.error('Gemini 오류:', JSON.stringify(data.error));
+      console.error('Gemini 오류 코드:', data.error.code, '메시지:', data.error.message);
       return res.status(200).json({ reply: FALLBACKS[Math.floor(Math.random() * FALLBACKS.length)] });
     }
+    
     const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (reply && reply.trim()) return res.status(200).json({ reply: reply.trim() });
+    
+    if (reply && reply.trim().length > 0) {
+      return res.status(200).json({ reply: reply.trim() });
+    }
+    
+    console.error('빈 응답. finishReason:', data?.candidates?.[0]?.finishReason);
     return res.status(200).json({ reply: FALLBACKS[Math.floor(Math.random() * FALLBACKS.length)] });
+
   } catch (err) {
     console.error('서버 오류:', err.message);
-    return res.status(200).json({ reply: '잠깐, 선생님이 생각 중이야 💭 다시 한번 말해줄래?' });
+    return res.status(200).json({ reply: '잠깐, 다시 말해줄래? 💙' });
   }
 };
