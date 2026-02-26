@@ -136,7 +136,7 @@ function updateFactMemory(prev, slots) {
 }
 
 function buildSystemPrompt(state) {
-  const { category, grade, name, gender, rollingSummary, factMemory, askedSlots, lastBotQ } = state;
+  const { category, grade, name, gender, rollingSummary, factMemory, lastBotQ } = state;
   return `
 당신은 ${SCHOOL_NAME}의 전문 상담사입니다. 이름은 "${COUNSELOR_NAME}"입니다.
 학생 정보: ${grade} ${name}(${gender}), 고민 영역: ${category}
@@ -160,9 +160,6 @@ ${rollingSummary || '아직 없음'}
 
 [직전 상담사 질문]
 ${lastBotQ || '없음'}
-
-[아직 묻지 않은 항목]
-${askedSlots.filter(s=>!factMemory[s]).join(', ') || '없음'}
 `.trim();
 }
 
@@ -179,19 +176,12 @@ export default function App() {
   const [riskAlert, setRiskAlert]     = useState('none');
   const [rollingSummary, setRollingSummary] = useState('');
   const [factMemory, setFactMemory]   = useState({});
-  const [askedSlots, setAskedSlots]   = useState(['subject','emotion','situation','severity']);
   const [lastBotQ, setLastBotQ]       = useState('');
-  const [headerClickCount, setHeaderClickCount] = useState(0);
-  const [logs, setLogs]               = useState([]);
   const bottomRef = useRef(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
-
-  function handleHeaderClick() {
-    setHeaderClickCount(n => n + 1);
-  }
 
   async function startChat(selectedGender) {
     setGender(selectedGender);
@@ -200,7 +190,7 @@ export default function App() {
     const greeting = getGreeting(name);
     const systemPrompt = buildSystemPrompt({
       category, grade, name, gender: selectedGender,
-      rollingSummary: '', factMemory: {}, askedSlots: ['subject','emotion','situation','severity'], lastBotQ: '',
+      rollingSummary: '', factMemory: {}, lastBotQ: '',
     });
     try {
       const reply = await callAI([
@@ -246,8 +236,7 @@ export default function App() {
 
       const systemPrompt = buildSystemPrompt({
         category, grade, name, gender,
-        rollingSummary: summary, factMemory: newMemory,
-        askedSlots, lastBotQ,
+        rollingSummary: summary, factMemory: newMemory, lastBotQ,
       });
 
       const reply = await callAI([
@@ -266,11 +255,6 @@ export default function App() {
         setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
         setLastBotQ(reply);
       }
-
-      setLogs(prev => [...prev, {
-        time: new Date().toLocaleTimeString(),
-        user: userText, bot: reply, risk,
-      }]);
 
     } catch (e) {
       setMessages(prev => [...prev, { role: 'assistant', content: '네트워크 오류가 발생했어요. 잠시 후 다시 시도해주세요. 💙' }]);
@@ -300,159 +284,38 @@ export default function App() {
       overflow: 'hidden',
       backdropFilter: 'blur(10px)',
     },
-    header: {
-      background: 'linear-gradient(135deg,#667eea,#764ba2)',
-      color: '#fff',
-      padding: '20px 24px',
-      cursor: 'pointer',
-      userSelect: 'none',
-    },
+    header: { background: 'linear-gradient(135deg,#667eea,#764ba2)', color: '#fff', padding: '20px 24px', cursor: 'pointer', userSelect: 'none' },
     headerTitle: { fontSize: '20px', fontWeight: 700, margin: 0 },
     headerSub: { fontSize: '13px', opacity: 0.85, marginTop: '4px' },
     body: { padding: '24px' },
     label: { fontSize: '14px', fontWeight: 600, color: '#555', marginBottom: '12px', display: 'block' },
     grid: { display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '10px', marginBottom: '20px' },
-    catBtn: {
-      background: 'rgba(248,240,255,0.9)',
-      border: '2px solid #e8d5ff',
-      borderRadius: '12px',
-      padding: '12px 4px',
-      cursor: 'pointer',
-      textAlign: 'center',
-      transition: 'all 0.2s',
-    },
+    catBtn: { background: 'rgba(248,240,255,0.9)', border: '2px solid #e8d5ff', borderRadius: '12px', padding: '12px 4px', cursor: 'pointer', textAlign: 'center', transition: 'all 0.2s' },
     catEmoji: { fontSize: '28px', display: 'block' },
     catLabel: { fontSize: '11px', color: '#666', marginTop: '4px', lineHeight: 1.2 },
     gradeGrid: { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '10px', marginBottom: '20px' },
-    gradeBtn: {
-      background: '#f0f8ff',
-      border: '2px solid #c8e4ff',
-      borderRadius: '12px',
-      padding: '14px 8px',
-      cursor: 'pointer',
-      fontSize: '15px',
-      fontWeight: 600,
-      color: '#4a6fa5',
-      textAlign: 'center',
-    },
-    input: {
-      width: '100%',
-      padding: '12px 16px',
-      borderRadius: '12px',
-      border: '2px solid #e0e0e0',
-      fontSize: '15px',
-      outline: 'none',
-      boxSizing: 'border-box',
-    },
-    btn: {
-      width: '100%',
-      padding: '14px',
-      borderRadius: '12px',
-      border: 'none',
-      background: 'linear-gradient(135deg,#667eea,#764ba2)',
-      color: '#fff',
-      fontSize: '16px',
-      fontWeight: 700,
-      cursor: 'pointer',
-      marginTop: '12px',
-    },
+    gradeBtn: { background: '#f0f8ff', border: '2px solid #c8e4ff', borderRadius: '12px', padding: '14px 8px', cursor: 'pointer', fontSize: '15px', fontWeight: 600, color: '#4a6fa5', textAlign: 'center' },
+    input: { width: '100%', padding: '12px 16px', borderRadius: '12px', border: '2px solid #e0e0e0', fontSize: '15px', outline: 'none', boxSizing: 'border-box' },
+    btn: { width: '100%', padding: '14px', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: '#fff', fontSize: '16px', fontWeight: 700, cursor: 'pointer', marginTop: '12px' },
     genderRow: { display: 'flex', gap: '12px', marginTop: '8px' },
-    genderBtn: {
-      flex: 1,
-      padding: '14px',
-      borderRadius: '12px',
-      border: '2px solid #e0d5ff',
-      background: '#f8f0ff',
-      fontSize: '15px',
-      fontWeight: 600,
-      cursor: 'pointer',
-      color: '#555',
-    },
+    genderBtn: { flex: 1, padding: '14px', borderRadius: '12px', border: '2px solid #e0d5ff', background: '#f8f0ff', fontSize: '15px', fontWeight: 600, cursor: 'pointer', color: '#555' },
     chatWrap: { display: 'flex', flexDirection: 'column', height: '70vh' },
-    msgList: {
-      flex: 1,
-      overflowY: 'auto',
-      padding: '16px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '10px',
-    },
-    userBubble: {
-      alignSelf: 'flex-end',
-      background: 'linear-gradient(135deg,#667eea,#764ba2)',
-      color: '#fff',
-      padding: '10px 16px',
-      borderRadius: '18px 18px 4px 18px',
-      maxWidth: '80%',
-      fontSize: '14px',
-      lineHeight: 1.6,
-    },
-    botBubble: {
-      alignSelf: 'flex-start',
-      background: 'rgba(244,240,255,0.95)',
-      color: '#333',
-      padding: '10px 16px',
-      borderRadius: '18px 18px 18px 4px',
-      maxWidth: '80%',
-      fontSize: '14px',
-      lineHeight: 1.6,
-    },
-    riskHigh: {
-      background: '#fff0f0',
-      border: '2px solid #ff6b6b',
-      borderRadius: '12px',
-      padding: '12px 16px',
-      margin: '8px 16px',
-      fontSize: '13px',
-      color: '#c0392b',
-      fontWeight: 600,
-    },
-    riskMed: {
-      background: '#fffbe6',
-      border: '2px solid #f1c40f',
-      borderRadius: '12px',
-      padding: '12px 16px',
-      margin: '8px 16px',
-      fontSize: '13px',
-      color: '#7d6608',
-    },
+    msgList: { flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' },
+    userBubble: { alignSelf: 'flex-end', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: '#fff', padding: '10px 16px', borderRadius: '18px 18px 4px 18px', maxWidth: '80%', fontSize: '14px', lineHeight: 1.6 },
+    botBubble: { alignSelf: 'flex-start', background: 'rgba(244,240,255,0.95)', color: '#333', padding: '10px 16px', borderRadius: '18px 18px 18px 4px', maxWidth: '80%', fontSize: '14px', lineHeight: 1.6 },
+    riskHigh: { background: '#fff0f0', border: '2px solid #ff6b6b', borderRadius: '12px', padding: '12px 16px', margin: '8px 16px', fontSize: '13px', color: '#c0392b', fontWeight: 600 },
+    riskMed: { background: '#fffbe6', border: '2px solid #f1c40f', borderRadius: '12px', padding: '12px 16px', margin: '8px 16px', fontSize: '13px', color: '#7d6608' },
     factRow: { display: 'flex', flexWrap: 'wrap', gap: '6px', padding: '8px 16px' },
-    factChip: {
-      background: '#e8f4fd',
-      borderRadius: '20px',
-      padding: '4px 10px',
-      fontSize: '12px',
-      color: '#2980b9',
-    },
-    inputRow: {
-      display: 'flex',
-      gap: '8px',
-      padding: '12px 16px',
-      borderTop: '1px solid #eee',
-    },
-    sendBtn: {
-      padding: '10px 18px',
-      borderRadius: '12px',
-      border: 'none',
-      background: 'linear-gradient(135deg,#667eea,#764ba2)',
-      color: '#fff',
-      fontSize: '15px',
-      fontWeight: 700,
-      cursor: 'pointer',
-    },
-    footer: {
-      textAlign: 'center',
-      fontSize: '12px',
-      color: '#aaa',
-      padding: '12px',
-      borderTop: '1px solid #f0f0f0',
-    },
+    factChip: { background: '#e8f4fd', borderRadius: '20px', padding: '4px 10px', fontSize: '12px', color: '#2980b9' },
+    inputRow: { display: 'flex', gap: '8px', padding: '12px 16px', borderTop: '1px solid #eee' },
+    sendBtn: { padding: '10px 18px', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: '#fff', fontSize: '15px', fontWeight: 700, cursor: 'pointer' },
+    footer: { textAlign: 'center', fontSize: '12px', color: '#aaa', padding: '12px', borderTop: '1px solid #f0f0f0' },
   };
 
   if (step === 'home') return (
     <div style={S.wrap}>
       <div style={S.card}>
-        <div style={S.header} onClick={handleHeaderClick}>
+        <div style={S.header}>
           <p style={S.headerTitle}>💙 {SCHOOL_NAME}</p>
           <p style={S.headerSub}>{COUNSELOR_NAME}</p>
         </div>
@@ -530,7 +393,7 @@ export default function App() {
   if (step === 'chat') return (
     <div style={S.wrap}>
       <div style={S.card}>
-        <div style={S.header} onClick={handleHeaderClick}>
+        <div style={S.header}>
           <p style={S.headerTitle}>💙 {SCHOOL_NAME}</p>
           <p style={S.headerSub}>{grade} {name} · {category}</p>
         </div>
